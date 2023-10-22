@@ -12,13 +12,13 @@ def get_differential_filter():
 
 def filter_image(im, filter):
     # TODO: implement this function
-    n, m = im.shape
+    h, w = im.shape
     k, _ = filter.shape
     padded_im = np.pad(im, k // 2)
     
-    im_filtered = np.zeros((n, m))
-    for i in range(n):
-        for j in range(m):
+    im_filtered = np.zeros((h, w))
+    for i in range(h):
+        for j in range(w):
             partial_mat = padded_im[i:i+k, j:j+k]
             partial_mat = np.multiply(partial_mat, filter)
             im_filtered[i][j] = np.sum(partial_mat)
@@ -28,29 +28,35 @@ def filter_image(im, filter):
 
 def get_gradient(im_dx, im_dy):
     # TODO: implement this function
-    n, m = im_dx.shape
-    grad_mag = np.zeros((n, m))
-    grad_angle = np.zeros((n, m))
-    for i in range(n):
-        for j in range(m):
-            grad_mag[i][j] = np.sqrt(im_dx[i][j]**2 + im_dy[i][j]**2)
-            grad_angle[i][j] = np.arctan2(im_dy[i][j], im_dx[i][j])
-            if grad_angle[i][j] < 0:
-                grad_angle[i][j] += np.pi
+    im_dx2, im_dy2 = np.square(im_dx), np.square(im_dy)
+    grad_mag = np.sqrt(np.add(im_dx2, im_dy2))
+    grad_angle = np.arctan2(im_dy, im_dx)
+    grad_angle = np.where(grad_angle < 0, grad_angle + np.pi, grad_angle)
+
     return grad_mag, grad_angle
 
 
 def build_histogram(grad_mag, grad_angle, cell_size):
     # TODO: implement this function
-    n, m = grad_mag.shape
-    N, M = n // cell_size, m // cell_size
-    ori_histo = np.zeros((N, M, 6))
+    h, w = grad_mag.shape
+    H, W = h // cell_size, w // cell_size
+    ori_histo = np.zeros((H, W, 6))
+    
+    bins = [np.deg2rad(d) for d in range(15, 180, 30)]
+    ind = np.digitize(grad_angle, bins)
+    ind = np.where(ind == 6, 0, ind)
+    for i in range(h):
+        for j in range(w):
+            ii, jj = i // cell_size, j // cell_size
+            ori_histo[ii][jj][ind[i][j]] += grad_mag[i][j]
     
     return ori_histo
 
 
 def get_block_descriptor(ori_histo, block_size):
     # TODO: implement this function
+    H, W, D = ori_histo.shape
+    
     return ori_histo_normalized
 
 
@@ -142,4 +148,4 @@ if __name__=='__main__':
     fim_x = filter_image(im, x)
     fim_y = filter_image(im, y)
     mag, ang = get_gradient(fim_x, fim_y)
-    print(mag, ang, sep='\n')
+    ori_hiso = build_histogram(mag, ang, 8)
