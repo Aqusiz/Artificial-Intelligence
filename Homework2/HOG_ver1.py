@@ -5,21 +5,47 @@ import matplotlib.pyplot as plt
 
 def get_differential_filter():
     # TODO: implement this function
+    filter_x = np.array([[-1, 0, 1] for _ in range(3)])
+    filter_y = np.array([[i, i, i] for i in range(-1, 2)])
     return filter_x, filter_y
 
 
 def filter_image(im, filter):
     # TODO: implement this function
+    n, m = im.shape
+    k, _ = filter.shape
+    padded_im = np.pad(im, k // 2)
+    
+    im_filtered = np.zeros((n, m))
+    for i in range(n):
+        for j in range(m):
+            partial_mat = padded_im[i:i+k, j:j+k]
+            partial_mat = np.multiply(partial_mat, filter)
+            im_filtered[i][j] = np.sum(partial_mat)
+
     return im_filtered
 
 
 def get_gradient(im_dx, im_dy):
     # TODO: implement this function
+    n, m = im_dx.shape
+    grad_mag = np.zeros((n, m))
+    grad_angle = np.zeros((n, m))
+    for i in range(n):
+        for j in range(m):
+            grad_mag[i][j] = np.sqrt(im_dx[i][j]**2 + im_dy[i][j]**2)
+            grad_angle[i][j] = np.arctan2(im_dy[i][j], im_dx[i][j])
+            if grad_angle[i][j] < 0:
+                grad_angle[i][j] += np.pi
     return grad_mag, grad_angle
 
 
 def build_histogram(grad_mag, grad_angle, cell_size):
     # TODO: implement this function
+    n, m = grad_mag.shape
+    N, M = n // cell_size, m // cell_size
+    ori_histo = np.zeros((N, M, 6))
+    
     return ori_histo
 
 
@@ -99,17 +125,21 @@ def visualize_face_detection(I_target, bounding_boxes, box_size):
 if __name__=='__main__':
 
     im = cv2.imread('cameraman.tif', 0)
-    hog = extract_hog(im, visualize=False)
+    # hog = extract_hog(im, visualize=False)
 
-    I_target= cv2.imread('target.png', 0) # MxN image
+    # I_target= cv2.imread('target.png', 0) # MxN image
 
-    I_template = cv2.imread('template.png', 0) # mxn  face template
+    # I_template = cv2.imread('template.png', 0) # mxn  face template
 
-    bounding_boxes = face_recognition(I_target, I_template)
+    # bounding_boxes = face_recognition(I_target, I_template)
 
-    I_target_c= cv2.imread('target.png') # MxN image (just for visualization)
+    # I_target_c= cv2.imread('target.png') # MxN image (just for visualization)
     
-    visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0]) # visualization code
+    # visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0]) # visualization code
 
-
-
+    # debug codes below
+    x, y = get_differential_filter()
+    fim_x = filter_image(im, x)
+    fim_y = filter_image(im, y)
+    mag, ang = get_gradient(fim_x, fim_y)
+    print(mag, ang, sep='\n')
