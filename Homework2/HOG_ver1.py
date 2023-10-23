@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 
 def get_differential_filter():
     # TODO: implement this function
-    filter_x = np.array([[-1, 0, 1] for _ in range(3)])
-    filter_y = np.array([[i, i, i] for i in range(-1, 2)])
+    # 3 by 3 Sobel filter
+    filter_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    filter_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
     return filter_x, filter_y
 
 
@@ -39,15 +40,16 @@ def get_gradient(im_dx, im_dy):
 def build_histogram(grad_mag, grad_angle, cell_size):
     # TODO: implement this function
     h, w = grad_mag.shape
-    H, W = h // cell_size, w // cell_size
-    ori_histo = np.zeros((H, W, 6))
+    H, W, D = h // cell_size, w // cell_size, 6
+    ori_histo = np.zeros((H, W, D))
     
     bins = [np.deg2rad(d) for d in range(15, 180, 30)]
     ind = np.digitize(grad_angle, bins)
     ind = np.where(ind == 6, 0, ind)
-    for i in range(h):
-        for j in range(w):
-            ii, jj = i // cell_size, j // cell_size
+    for i in range((h // cell_size) * cell_size):
+        ii = i // cell_size
+        for j in range((w // cell_size) * cell_size):
+            jj = j // cell_size
             ori_histo[ii][jj][ind[i][j]] += grad_mag[i][j]
     
     return ori_histo
@@ -56,6 +58,21 @@ def build_histogram(grad_mag, grad_angle, cell_size):
 def get_block_descriptor(ori_histo, block_size):
     # TODO: implement this function
     H, W, D = ori_histo.shape
+    HH, WW, DD = H - block_size + 1, W - block_size + 1, D * block_size * block_size
+    e = 0.001
+    
+    ori_histo_normalized = np.zeros((HH, WW, DD))
+    for i in range(HH):
+        for j in range(WW):
+            # concat the original histograms in the block
+            for ii in range(block_size):
+                for jj in range(block_size):
+                    st = D * (ii * block_size + jj)
+                    ed = st + D
+                    ori_histo_normalized[i, j, st:ed] = ori_histo[i + ii, j + jj, 0:D]
+            # normalize
+            norm = (np.sum(np.square(ori_histo_normalized[i][j])) + e**2) ** 0.5
+            ori_histo_normalized[i][j] /= norm
     
     return ori_histo_normalized
 
@@ -83,6 +100,14 @@ def visualize_hog(im, hog, cell_size, block_size):
 
 def extract_hog(im, visualize=False, cell_size=8, block_size=2):
     # TODO: implement this function
+    filter_x, filter_y = get_differential_filter()
+    fim_x, fim_y = filter_image(im, filter_x), filter_image(im, filter_y)
+    grad_mag, grad_ang = get_gradient(fim_x, fim_y)
+    ori_histo = build_histogram(grad_mag, grad_ang, cell_size)
+    hog = get_block_descriptor(ori_histo, block_size)
+    
+    if visualize:
+        visualize_hog(im, hog, cell_size, block_size)
     return hog
 
 
@@ -131,21 +156,14 @@ def visualize_face_detection(I_target, bounding_boxes, box_size):
 if __name__=='__main__':
 
     im = cv2.imread('cameraman.tif', 0)
-    # hog = extract_hog(im, visualize=False)
+    hog = extract_hog(im, visualize=False)
 
-    # I_target= cv2.imread('target.png', 0) # MxN image
+    I_target= cv2.imread('target.png', 0) # MxN image
 
-    # I_template = cv2.imread('template.png', 0) # mxn  face template
+    I_template = cv2.imread('template.png', 0) # mxn  face template
 
-    # bounding_boxes = face_recognition(I_target, I_template)
+    bounding_boxes = face_recognition(I_target, I_template)
 
-    # I_target_c= cv2.imread('target.png') # MxN image (just for visualization)
+    I_target_c= cv2.imread('target.png') # MxN image (just for visualization)
     
-    # visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0]) # visualization code
-
-    # debug codes below
-    x, y = get_differential_filter()
-    fim_x = filter_image(im, x)
-    fim_y = filter_image(im, y)
-    mag, ang = get_gradient(fim_x, fim_y)
-    ori_hiso = build_histogram(mag, ang, 8)
+    visualize_face_detection(I_target_c, bounding_boxes, I_template.shape[0]) # visualization code
