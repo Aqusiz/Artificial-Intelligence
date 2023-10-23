@@ -113,6 +113,54 @@ def extract_hog(im, visualize=False, cell_size=8, block_size=2):
 
 def face_recognition(I_target, I_template):
     # TODO: implement this function
+    # Use thresholing and NMS(non-maximum suppresion) with IoU 50%
+    # bounding boxes: array of (x, y, s)
+    # s: NCC(normalized cross-correlation) between the bounding box patch and the template
+    threshold_NCC = 0.5
+    threshold_IoU = 0.5
+    target_h, target_w = I_target.shape
+    template_h, template_w = I_template.shape
+    template_hog = extract_hog(I_template)
+    b = template_hog.flatten()
+    b -= np.mean(b)
+    
+    proposals = []
+    # thresholding
+    for i in range(target_h - template_h):
+        for j in range(target_w - template_w):
+            patch = I_target[i:i+template_h, j:j+template_w]
+            patch_hog = extract_hog(patch)
+            a = patch_hog.flatten()
+            a -= np.mean(a)
+            s = np.dot(a, b) / (np.linalg.norm(a, 2) * np.linalg.norm(b, 2))
+            if s > threshold_NCC:
+                proposals.append(np.array([j, i, s]))   # row: [x, y, s]
+    # NMS with IoU 50%
+    proposals.sort(key=lambda x: x[2], reverse=True)
+    bounding_boxes = np.array([[0, 0, 0]])
+    while proposals:
+        chosen_box = proposals.pop(0)
+        bounding_boxes = np.append(bounding_boxes, np.array([chosen_box]), axis=0)
+
+        x1, y1, _ = chosen_box
+        x2, y2 = x1 + template_w, y1 + template_h
+        new_proposals = []
+        for box in proposals:
+            # calculate IoU
+            x3, y3, _ = box
+            x4, y4 = x3 + template_w, y3 + template_h
+            x_inter1 = max(x1, x3)
+            y_inter1 = max(y1, y3)
+            x_inter2 = min(x2, x4)
+            y_inter2 = min(y2, y4)
+            area_inter = abs(x_inter2 - x_inter1) * abs(y_inter2 - y_inter1)
+            area_union = template_h * template_w * 2 - area_inter
+            IoU = area_inter / area_union
+            if IoU < threshold_IoU:
+                new_proposals.append(box)
+        proposals = new_proposals
+    bounding_boxes = np.delete(bounding_boxes, [0, 0], axis=0)
+    
     return bounding_boxes
 
 
