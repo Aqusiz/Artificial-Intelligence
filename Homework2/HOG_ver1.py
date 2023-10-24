@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 def get_differential_filter():
     # TODO: implement this function
     # 3 by 3 Sobel filter
-    filter_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+    filter_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])
     filter_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])
     return filter_x, filter_y
 
@@ -45,7 +45,7 @@ def build_histogram(grad_mag, grad_angle, cell_size):
     
     bins = [np.deg2rad(d) for d in range(15, 180, 30)]
     ind = np.digitize(grad_angle, bins)
-    ind = np.where(ind == 6, 0, ind)
+    ind = np.where(ind == 6, 0, ind)    # [165, 180) and [0, 15) is in the same index
     for i in range((h // cell_size) * cell_size):
         ii = i // cell_size
         for j in range((w // cell_size) * cell_size):
@@ -116,7 +116,7 @@ def face_recognition(I_target, I_template):
     # Use thresholing and NMS(non-maximum suppresion) with IoU 50%
     # bounding boxes: array of (x, y, s)
     # s: NCC(normalized cross-correlation) between the bounding box patch and the template
-    threshold_NCC = 0.5
+    threshold_NCC = 0.45
     threshold_IoU = 0.5
     target_h, target_w = I_target.shape
     template_h, template_w = I_template.shape
@@ -132,7 +132,7 @@ def face_recognition(I_target, I_template):
             patch_hog = extract_hog(patch)
             a = patch_hog.flatten()
             a -= np.mean(a)
-            s = np.dot(a, b) / (np.linalg.norm(a, 2) * np.linalg.norm(b, 2))
+            s = abs(np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b)))
             if s > threshold_NCC:
                 proposals.append(np.array([j, i, s]))   # row: [x, y, s]
     # NMS with IoU 50%
@@ -149,13 +149,16 @@ def face_recognition(I_target, I_template):
             # calculate IoU
             x3, y3, _ = box
             x4, y4 = x3 + template_w, y3 + template_h
-            x_inter1 = max(x1, x3)
-            y_inter1 = max(y1, y3)
-            x_inter2 = min(x2, x4)
-            y_inter2 = min(y2, y4)
-            area_inter = abs(x_inter2 - x_inter1) * abs(y_inter2 - y_inter1)
-            area_union = template_h * template_w * 2 - area_inter
-            IoU = area_inter / area_union
+            if (x3 > x2) or (x1 > x4) or (y3 > y2) or (y1 > y4):
+                IoU = 0
+            else:
+                x_inter1 = max(x1, x3)
+                y_inter1 = max(y1, y3)
+                x_inter2 = min(x2, x4)
+                y_inter2 = min(y2, y4)
+                area_inter = abs(x_inter2 - x_inter1) * abs(y_inter2 - y_inter1)
+                area_union = template_h * template_w * 2 - area_inter
+                IoU = area_inter / area_union
             if IoU < threshold_IoU:
                 new_proposals.append(box)
         proposals = new_proposals
