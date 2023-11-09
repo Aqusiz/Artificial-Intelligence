@@ -27,8 +27,17 @@ def predict_knn(x, inputs, labels, k_neighbors):
     predicted_label = 0
     ########
     # TO DO:
+    norm_labels = []    # [(dist, label), ...]
+    for i, l in zip(inputs, labels):
+        norm = np.linalg.norm(x - i)
+        norm_labels.append((norm, l))
+    norm_labels.sort()
 
-
+    knn = norm_labels[:k_neighbors]
+    cnt = {}
+    for _, label in knn:
+        cnt[label] = cnt.get(label, 0) + 1
+    predicted_label = max(cnt.items(), key=lambda x: x[1])[0]
     ########
     return predicted_label
 
