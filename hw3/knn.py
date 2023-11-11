@@ -27,6 +27,12 @@ def predict_knn(x, inputs, labels, k_neighbors):
     predicted_label = 0
     ########
     # TO DO:
+    # preprocess for wrong data
+    if isinstance(inputs, tuple):
+        inputs = inputs[0]
+    if isinstance(labels, tuple):
+        labels = labels[0]
+
     norm_labels = []    # [(dist, label), ...]
     for i, l in zip(inputs, labels):
         norm = np.linalg.norm(x - i)
@@ -60,8 +66,22 @@ def eval_knn(inputs, labels, train_inputs, train_labels, k_neighbors):
     accuracy = 0
     ########
     # TO DO:
+    # preprocess for wrong data
+    if isinstance(inputs, tuple):
+        inputs = inputs[0]
+    if isinstance(train_inputs, tuple):
+        train_inputs = train_inputs[0]
+    if isinstance(labels, tuple):
+        labels = labels[0]
+    if isinstance(train_labels, tuple):
+        train_labels = train_labels[0]
 
-
+    cnt = 0
+    for x, l in zip(inputs, labels):
+        predicted_label = predict_knn(x, train_inputs, train_labels, k_neighbors)
+        if predicted_label == l:
+            cnt += 1
+    accuracy = (cnt / len(inputs)) * 100
     ########
     return accuracy
 
@@ -85,7 +105,29 @@ def cross_validation_knn(k_folds, hyperparameters, inputs, labels):
     accuracies = np.zeros(len(hyperparameters))
     ########
     # TO DO:
+    # preprocess for wrong data
+    if isinstance(inputs, tuple):
+        inputs = inputs[0]
+    if isinstance(labels, tuple):
+        labels = labels[0]
 
+    for hp in hyperparameters:
+        acc = 0
+        length = 0
+        # split inputs and labels into valid set and train set
+        for i in range(0, len(inputs)//k_folds, k_folds):
+            valid_inputs = inputs[i * k_folds:(i+1) * k_folds]
+            valid_labels = labels[i * k_folds:(i+1) * k_folds]
+            train_inputs = np.concatenate((inputs[:i * k_folds], inputs[(i+1) * k_folds:]))
+            train_labels = np.concatenate((labels[:i * k_folds], labels[(i+1) * k_folds:]))
+            acc += eval_knn(valid_inputs, valid_labels, train_inputs, train_labels, hp)
+            length += 1
+        # calculate avearge accuracy and update
+        avg_accuracy = acc / length
+        accuracies[hp-1] = avg_accuracy
+        if best_accuracy < avg_accuracy:
+            best_hyperparam = hp
+            best_accuracy = avg_accuracy
 
     ########
     return best_hyperparam, best_accuracy, accuracies
