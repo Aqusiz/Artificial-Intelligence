@@ -113,17 +113,16 @@ def cross_validation_knn(k_folds, hyperparameters, inputs, labels):
 
     for hp in hyperparameters:
         acc = 0
-        length = 0
+        fold_len = len(inputs) // k_folds
         # split inputs and labels into valid set and train set
-        for i in range(0, len(inputs)//k_folds, k_folds):
-            valid_inputs = inputs[i * k_folds:(i+1) * k_folds]
-            valid_labels = labels[i * k_folds:(i+1) * k_folds]
-            train_inputs = np.concatenate((inputs[:i * k_folds], inputs[(i+1) * k_folds:]))
-            train_labels = np.concatenate((labels[:i * k_folds], labels[(i+1) * k_folds:]))
+        for i in range(k_folds):
+            valid_inputs = inputs[i * fold_len : (i+1) * fold_len]
+            valid_labels = labels[i * fold_len : (i+1) * fold_len]
+            train_inputs = np.concatenate((inputs[: i * fold_len], inputs[(i+1) * fold_len:]))
+            train_labels = np.concatenate((labels[: i * fold_len], labels[(i+1) * fold_len:]))
             acc += eval_knn(valid_inputs, valid_labels, train_inputs, train_labels, hp)
-            length += 1
         # calculate avearge accuracy and update
-        avg_accuracy = acc / length
+        avg_accuracy = acc / k_folds
         accuracies[hp-1] = avg_accuracy
         if best_accuracy < avg_accuracy:
             best_hyperparam = hp
