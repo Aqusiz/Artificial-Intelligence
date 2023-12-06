@@ -173,11 +173,8 @@ def linearBackward(prev, p, grad_curr):
 
     # prev(x): (N, M+1), p(alpha): (D, M+1), grad_curr(g_a): (N, D)
     # grad_param(g_alpha): (D, M+1)
-    N, _ = prev.shape
-
-    grad_param = (2 / N) * np.dot(grad_curr.T, prev)
-    grad_prev = (2 / N) * np.dot(grad_curr, p[:, 1:])
-
+    grad_param = np.dot(grad_curr.T, prev)
+    grad_prev = np.dot(grad_curr, p[:, 1:])
     return grad_param, grad_prev
 
 
