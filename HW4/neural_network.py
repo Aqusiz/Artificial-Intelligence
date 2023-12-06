@@ -72,7 +72,7 @@ def linearForward(input, p):
     Returns:
         - output vector (N, out_features)
     """
-    pass
+    return np.dot(input, p.T)
 
 
 def sigmoidForward(a):
@@ -83,7 +83,7 @@ def sigmoidForward(a):
     Returns:
         - output vector (N, dim)
     """
-    pass
+    return 1 / (1 + np.exp(-a))
 
 
 def softmaxForward(b):
@@ -94,7 +94,10 @@ def softmaxForward(b):
     Returns:
         - output vector (N, dim)
     """
-    pass
+    max_value = np.max(b)
+    exp_b = np.exp(b - max_value)
+    exp_sum = np.sum(exp_b)
+    return exp_b / exp_sum
 
 
 def crossEntropyForward(hot_y, y_hat):
@@ -106,7 +109,8 @@ def crossEntropyForward(hot_y, y_hat):
     Returns:
         - average cross entropy loss for N data (scalar)
     """
-    pass
+    # return -np.mean(np.sum(hot_y * np.log(y_hat), axis=1))
+    return np.mean(-np.sum(hot_y * np.log(y_hat + 1e-15), axis=1))
 
 
 def NNForward(x, y, alpha, beta):
@@ -129,7 +133,16 @@ def NNForward(x, y, alpha, beta):
 
     TIP: Check on your dimensions. Did you make sure all bias features are added?
     """
-    pass
+    bias_feature = 1
+    a = linearForward(x, alpha)
+    z = np.insert(sigmoidForward(a), 0, bias_feature, axis=1)
+    b = linearForward(z, beta)
+    y_hat = softmaxForward(b)
+    hot_y = np.zeros(y_hat.shape)
+    for i in range(len(y)):
+        hot_y[i, y[i]] = 1
+    J = crossEntropyForward(hot_y, y_hat)
+    return x, a, z, b, y_hat, J
 
 
 def softmaxBackward(hot_y, y_hat):
@@ -138,7 +151,7 @@ def softmaxBackward(hot_y, y_hat):
         - hot_y: 1-hot encoding for true labels (N, K) where K is the # of classes
         - y_hat: (N, K) vector of probabilistic distribution for predicted label
     """
-    pass
+    return y_hat - hot_y
 
 
 def linearBackward(prev, p, grad_curr):
@@ -155,7 +168,17 @@ def linearBackward(prev, p, grad_curr):
 
     TIP: Check your dimensions.
     """
-    pass
+    # prev(z): (N, D+1), p(beta): (K, D+1), grad_curr(g_b): (N, K)
+    # grad_param(g_beta): (K, D+1), grad_prevl(g_z): (N, D)
+
+    # prev(x): (N, M+1), p(alpha): (D, M+1), grad_curr(g_a): (N, D)
+    # grad_param(g_alpha): (D, M+1)
+    N, _ = prev.shape
+
+    grad_param = (2 / N) * np.dot(grad_curr.T, prev)
+    grad_prev = (2 / N) * np.dot(grad_curr, p[:, 1:])
+
+    return grad_param, grad_prev
 
 
 def sigmoidBackward(curr, grad_curr):
@@ -165,7 +188,12 @@ def sigmoidBackward(curr, grad_curr):
     :return: grad_prevl: gradients for previous layer
     TIP: Check your dimensions
     """
-    pass
+    # curr(z): (N, D+1), grad_curr(g_z): (N, D)
+    curr_wo_bias = curr[:, 1:]
+    sigmoid_derivative = curr_wo_bias * (1 - curr_wo_bias)
+    grad_prevl = grad_curr * sigmoid_derivative
+    
+    return grad_prevl
 
 
 def NNBackward(x, y, alpha, beta, z, y_hat):
@@ -187,9 +215,14 @@ def NNBackward(x, y, alpha, beta, z, y_hat):
         - g_z: gradients for layer z (linearBackward)
         - g_a: gradients for layer a (sigmoidBackward)
     """
-    pass
-
-
+    hot_y = np.zeros(y_hat.shape)
+    for i in range(len(y)):
+        hot_y[i, y[i]] = 1
+    g_b = softmaxBackward(hot_y, y_hat)
+    g_beta, g_z = linearBackward(z, beta, g_b)
+    g_a = sigmoidBackward(z, g_z)
+    g_alpha, g_x = linearBackward(x, alpha, g_a)
+    return g_alpha, g_beta, g_b, g_z, g_a
 
 def SGD(tr_x, tr_y, valid_x, valid_y, hidden_units, num_epoch, init_flag, learning_rate):
     """
@@ -211,7 +244,37 @@ def SGD(tr_x, tr_y, valid_x, valid_y, hidden_units, num_epoch, init_flag, learni
         - train_entropy (length num_epochs): mean cross-entropy loss for training data for each epoch
         - valid_entropy (length num_epochs): mean cross-entropy loss for validation data for each epoch
     """
-    pass
+    train_entropy = []
+    valid_entropy = []
+    N, M = tr_x.shape
+    K = 10
+    minibatch_size = 1
+    # x: (N, M) -> (N, M+1)
+    bias_value = 1
+    tr_x = np.insert(tr_x, 0, bias_value, axis=1)
+    valid_x = np.insert(valid_x, 0, bias_value, axis=1)
+    # init parameters
+    alpha_shape = (hidden_units, M + 1)
+    beta_shape = (K, hidden_units + 1)
+    alpha = np.random.uniform(-0.1, 0.1, size=alpha_shape) if init_flag else np.zeros(alpha_shape)
+    beta = np.random.uniform(-0.1, 0.1, beta_shape) if init_flag else np.zeros(beta_shape)
+    alpha[:, 0] = 0     # init bias
+    beta[:, 0] = 0      # init bias
+    
+    for e in range(num_epoch):
+        for idx in range(0, len(tr_x), minibatch_size):
+            x = tr_x[idx:idx+minibatch_size, :]
+            y = tr_y[idx:idx+minibatch_size]
+            _x, a, z, b, y_hat, J = NNForward(x, y, alpha, beta)
+            g_alpha, g_beta, _, _, _ = NNBackward(x, y, alpha, beta, z, y_hat)
+            alpha = alpha - learning_rate * g_alpha
+            beta = beta - learning_rate * g_beta
+        _, _, _, _, _, tr_J = NNForward(tr_x, tr_y, alpha, beta)
+        _, _, _, _, _, valid_J = NNForward(valid_x, valid_y, alpha, beta)
+        train_entropy.append(tr_J)
+        valid_entropy.append(valid_J)
+    
+    return alpha, beta, train_entropy, valid_entropy
 
 
 def prediction(tr_x, tr_y, valid_x, valid_y, tr_alpha, tr_beta):
@@ -230,7 +293,34 @@ def prediction(tr_x, tr_y, valid_x, valid_y, tr_alpha, tr_beta):
         - y_hat_train: predicted labels for training data
         - y_hat_valid: predicted labels for validation data
     """
-    pass
+    N_train, _ = tr_x.shape
+    N_valid, _ = valid_x.shape
+    tr_error_cnt = 0
+    valid_error_cnt = 0
+    y_hat_train = np.zeros((N_train, 1))
+    y_hat_valid = np.zeros((N_valid, 1))
+    # x: (N, M) -> (N, M+1)
+    bias_value = 1
+    tr_x = np.insert(tr_x, 0, bias_value, axis=1)
+    valid_x = np.insert(valid_x, 0, bias_value, axis=1)
+
+    for idx in range(len(tr_x)):
+        x = tr_x[idx:idx+1, :]
+        y = tr_y[idx:idx+1]
+        _, _, _, _, y_hat, _ = NNForward(x, y, tr_alpha, tr_beta)
+        l = np.argmax(y_hat[0])
+        if l != y[0]:
+            tr_error_cnt += 1
+        y_hat_train[idx, 0] = l
+    for idx in range(len(valid_x)):
+        x = valid_x[idx:idx+1, :]
+        y = valid_y[idx:idx+1]
+        _, _, _, _, y_hat, _ = NNForward(x, y, tr_alpha, tr_beta)
+        l = np.argmax(y_hat[0])
+        if l != y[0]:
+            valid_error_cnt += 1
+        y_hat_valid[idx, 0] = l
+    return tr_error_cnt / N_train, valid_error_cnt / N_valid, y_hat_train, y_hat_valid
 
 ### FEEL FREE TO WRITE ANY HELPER FUNCTIONS
 
@@ -266,7 +356,34 @@ def train_and_valid(X_train, y_train, X_val, y_val, num_epoch, num_hidden, init_
     err_val = None
     y_hat_train = None
     y_hat_val = None
-
+    
+    alpha, beta, loss_per_epoch_train, loss_per_epoch_val = SGD(X_train, y_train, X_val, y_val, num_hidden, num_epoch, init_rand, learning_rate)
+    err_train, err_val, y_hat_train, y_hat_val = prediction(X_train, y_train, X_val, y_val, alpha, beta)
 
     return (loss_per_epoch_train, loss_per_epoch_val,
             err_train, err_val, y_hat_train, y_hat_val)
+    
+def main():
+    X_train, y_train, X_valid, y_valid = load_data_medium()
+    num_epoch = 100
+    num_hidden = 20
+    init_rand = True
+    learning_rate = 0.01
+    
+    # load_dic = {'small': load_data_small, 'medium': load_data_medium, 'large': load_data_large}
+    # X_train, y_train, X_valid, y_valid = load_dic[data_size]()
+    (loss_per_epoch_train, loss_per_epoch_val,
+     err_train, err_val,
+     y_hat_train, y_hat_val) = train_and_valid(X_train, y_train, X_valid, y_valid, num_epoch, num_hidden, init_rand, learning_rate)
+    
+    print(f"loss_per_epoch_train: {loss_per_epoch_train}")
+    print(f"loss_per_epoch_val: {loss_per_epoch_val}")
+    print(f"err_train: {err_train}")
+    print(f"err_val: {err_val}")
+    print(f"y_hat_train: {y_hat_train.flatten()}")
+    print(f"y_train: {y_train}")
+    print(f"y_hat_val: {y_hat_val.flatten()}")
+    print(f"y_valid: {y_valid}")
+    
+if __name__ == "__main__":
+    main()
